@@ -127,3 +127,25 @@ def test_scheme_relative_image_normalized_without_base_url():
     )
     art = extract_article(html)
     assert art.images[0].src == "https://cdn.example.com/a.webp"
+
+
+def test_author_from_byline_link():
+    html = (
+        '<html><head><title>T</title></head><body><main><article><h1>T</h1>'
+        + "word " * 60
+        + '<p>text</p><a href="https://example.com/author/hartosh-singh-bal">Hartosh Singh Bal</a>'
+        + '<p>more text</p></article></main></body></html>'
+    )
+    art = extract_article(html)
+    assert art.author == "Hartosh Singh Bal"
+
+
+def test_author_link_not_nav_link():
+    # a nav link to an "authors" index page must not be treated as the byline
+    html = (
+        '<html><head><title>T</title></head><body><main><article><h1>T</h1>'
+        + "word " * 60
+        + '<p>text</p><a href="/authors">Authors</a><p>more text</p></article></main></body></html>'
+    )
+    art = extract_article(html)
+    assert art.author is None

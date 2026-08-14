@@ -234,6 +234,13 @@ def _resolve_author(soup: BeautifulSoup) -> str | None:
             text = el.get_text(" ", strip=True)
             if text and len(text) < 120:
                 return text
+    # Byline link to an author/profile page (e.g. Caravan's /author/<slug>).
+    for a in soup.find_all("a"):
+        href = (a.attrs or {}).get("href") or ""
+        if re.search(r"/(author|authors|writer|writers|contributor|contributors)/", href, re.IGNORECASE):
+            text = a.get_text(" ", strip=True)
+            if text and len(text) < 80 and "author" not in text.lower() and "writer" not in text.lower():
+                return text
     m = re.search(r'"author"\s*:\s*\{[^{}]*"name"\s*:\s*"([^"]+)"', soup.decode())
     if m:
         return m.group(1)
