@@ -159,7 +159,7 @@ def _pick_content_root(soup: BeautifulSoup) -> Tag:
     return soup.body or soup
 
 
-def _collect_images(root: Tag, images: list[ImageRef]) -> None:
+def _collect_images(root: Tag, images: list[ImageRef], base_url: str | None = None) -> None:
     for img in list(root.find_all("img")):
         src = next(((img.attrs or {}).get(a) for a in _IMG_SRC_ATTRS if (img.attrs or {}).get(a)), None)
         if not src:
@@ -203,6 +203,8 @@ def _collect_images(root: Tag, images: list[ImageRef]) -> None:
             continue
         if src.startswith("//"):
             src = "https:" + src
+        elif base_url and not src.startswith(("http://", "https://")):
+            src = urljoin(base_url, src)
         placeholder = f"images/{len(images):04d}"
         alt = (img.attrs or {}).get("alt") or ""
         images.append(ImageRef(src=src, alt=alt, placeholder=placeholder))
@@ -312,7 +314,7 @@ def extract_article(
 
     root = _pick_content_root(soup)
     images: list[ImageRef] = []
-    _collect_images(root, images)
+    _collect_images(root, images, base_url)
 
     title = _resolve_title(soup, root)
     language = _resolve_language(soup)
@@ -324,14 +326,10 @@ def extract_article(
         body = _paragraphs_from_text(body_text)
         images = []
     else:
-        # Anchor headings for TOC sub-entries; rewrite relative image srcs.
+        # Anchor headings for TOC sub-entries.
         for idx, heading in enumerate(root.find_all(["h2", "h3"])):
             if not (heading.attrs or {}).get("id"):
                 heading["id"] = f"sec-{idx}"
-        for img in root.find_all("img"):
-            src = (img.attrs or {}).get("src")
-            if src and not src.startswith("images/"):
-                img["src"] = urljoin(base_url or "", src)
         for a in root.find_all("a"):
             href = (a.attrs or {}).get("href") or ""
             if href.startswith("javascript:") or href.strip() == "":

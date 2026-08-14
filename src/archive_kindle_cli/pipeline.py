@@ -19,6 +19,7 @@ def convert_html(
     html: str,
     *,
     source_url: str | None = None,
+    base_url: str | None = None,
     out_path: Path | None = None,
     cache_dir: Path,
     title: str | None = None,
@@ -28,7 +29,7 @@ def convert_html(
     verbose: bool = False,
 ) -> Path:
     """Extract, download images, and write the EPUB. Returns the output path."""
-    article = extract_article(html, source_url=source_url, base_url=source_url)
+    article = extract_article(html, source_url=source_url, base_url=base_url)
     if not article.body.strip():
         raise NoContentError("no readable content found in the page")
     if out_path is None:

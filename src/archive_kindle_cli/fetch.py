@@ -14,6 +14,7 @@ import time
 from http.cookiejar import Cookie, MozillaCookieJar
 from pathlib import Path
 
+from bs4 import BeautifulSoup
 import requests
 
 UA = (
@@ -104,13 +105,14 @@ def _new_session(cache_dir: Path) -> requests.Session:
     session.cookies = jar
     return session
 
-_SNAPSHOT_ID_RE = re.compile(r'id=["\'](?:HEADER|CONTENT)["\']', re.IGNORECASE)
-
-
-def _is_snapshot(html: str) -> bool:
-    """A real snapshot page has archive.today's #HEADER/#CONTENT wrappers."""
-    return bool(_SNAPSHOT_ID_RE.search(html[:200_000]))
-
+def _has_article(html: str) -> bool:
+    """True when the snapshot's #CONTENT holds substantial article text."""
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        el = soup.select_one("#CONTENT, #content")
+        return bool(el) and len(el.get_text(" ", strip=True)) > 500
+    except Exception:  # noqa: BLE001 - malformed HTML should just mean "not ready"
+        return False
 
 def _browser_cookie_to_jar_cookie(c: dict) -> Cookie:
     return Cookie(
@@ -178,13 +180,15 @@ def _fetch_browser(target: str, cache_dir: Path, timeout: float, wait: float) ->
         )
         deadline = time.monotonic() + wait
         html = ""
+        ready = False
         while time.monotonic() < deadline:
             html = page.content()
-            if not _is_challenge(200, html) and _is_snapshot(html):
+            if not _is_challenge(200, html) and _has_article(html):
+                ready = True
                 break
             time.sleep(2)
         _save_browser_cookies(ctx, cache_dir)
-        if _is_challenge(200, html) or not _is_snapshot(html):
+        if not ready or _is_challenge(200, html):
             raise CaptchaBlocked(
                 f"CAPTCHA not completed in time for {target}. "
                 "Re-run with --browser and finish the challenge in the window."

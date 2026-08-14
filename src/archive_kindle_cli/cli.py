@@ -9,7 +9,7 @@ from typing import Annotated, Optional
 import typer
 
 from . import __version__
-from .fetch import CaptchaBlocked, FetchError, fetch_snapshot
+from .fetch import CaptchaBlocked, FetchError, fetch_snapshot, normalize_url
 from .pipeline import NoContentError, convert_html
 
 app = typer.Typer(
@@ -67,17 +67,20 @@ def convert(
             eprint(f"reading {file}")
             html = file.read_text(encoding="utf-8", errors="replace")
             source_url = url if url.startswith("http") else None
+            base_url = source_url
         else:
             eprint(f"fetching {url}")
             html = fetch_snapshot(
                 url, cache_dir, use_browser=browser, timeout=60.0
             )
             source_url = None
+            base_url = normalize_url(url)
 
         eprint("extracting content")
         out_path = convert_html(
             html,
             source_url=source_url,
+            base_url=base_url,
             out_path=output,
             cache_dir=cache_dir,
             title=title,

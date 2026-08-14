@@ -107,3 +107,23 @@ def test_archive_detection_without_toolbar_links():
     )
     art = extract_article(html)
     assert "archive.today" not in art.body
+
+
+def test_relative_image_src_resolved_against_base_url():
+    html = (
+        '<html><body><main><article><h1>T</h1>'
+        + "word " * 60
+        + '<p>text</p><img src="/Pxjvq/abc123.webp" alt="x"/></article></main></body></html>'
+    )
+    art = extract_article(html, base_url="https://archive.ph/Pxjvq")
+    assert art.images[0].src == "https://archive.ph/Pxjvq/abc123.webp"
+
+
+def test_scheme_relative_image_normalized_without_base_url():
+    html = (
+        '<html><body><main><article><h1>T</h1>'
+        + "word " * 60
+        + '<p>text</p><img src="//cdn.example.com/a.webp" alt="x"/></article></main></body></html>'
+    )
+    art = extract_article(html)
+    assert art.images[0].src == "https://cdn.example.com/a.webp"

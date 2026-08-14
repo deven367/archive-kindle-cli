@@ -191,7 +191,7 @@ def _install_fake_playwright(monkeypatch, html):
 
 
 def test_browser_fetch_success(monkeypatch, cache_dir):
-    snapshot = "<html><body><div id='HEADER'></div><div id='CONTENT'>x</div></body></html>"
+    snapshot = "<html><body><div id='HEADER'></div><div id='CONTENT'>" + "word " * 200 + "</div></body></html>"
     _install_fake_playwright(monkeypatch, snapshot)
     body = F.fetch_snapshot("Pxjvq", cache_dir, use_browser=True)
     assert body == snapshot
