@@ -39,7 +39,8 @@ def test_convert_real_snapshot_end_to_end(
     assert "caravanmagazine.in" in opf  # dc:source = original URL
 
 
-def test_convert_default_output_name(tmp_path, cache_dir):
+def test_convert_default_output_name(tmp_path, cache_dir, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     out = convert_html(
         "<html><head><title>My Great Piece</title></head><body>"
         "<article><h1>My Great Piece</h1>" + ("<p>words words</p>" * 30)
