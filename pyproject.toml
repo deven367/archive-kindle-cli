@@ -18,9 +18,14 @@ dependencies = [
 
 [project.optional-dependencies]
 browser = ["playwright>=1.40"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0"]
 
 [project.scripts]
 archive-kindle = "archive_kindle_cli.cli:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=archive_kindle_cli --cov-report=term-missing --cov-fail-under=75"
 
 [build-system]
 requires = ["uv_build>=0.9.8,<0.10.0"]

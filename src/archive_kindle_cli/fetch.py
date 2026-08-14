@@ -34,7 +34,7 @@ MIRRORS = {
 }
 
 _ID_RE = re.compile(
-    r"^(?:https?://(?:www\.)?(?:%s)/)?([A-Za-z0-9_-]+)(?:[?#].*)?$"
+    r"^(?:(?:https?://)?(?:www\.)?(?:%s)/)?([A-Za-z0-9_-]+)(?:[?#].*)?$"
     % "|".join(sorted(MIRRORS)),
     re.IGNORECASE,
 )

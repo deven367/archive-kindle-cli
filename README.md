@@ -1,7 +1,7 @@
 # archive-kindle-cli
 
-Convert [archive.today](https://archive.ph/) (archive.is) snapshots into
-Kindle-ready EPUBs with images.
+CLI that converts [archive.today](https://archive.ph/) (archive.is) snapshots
+into Kindle-ready EPUBs with images.
 
 Works around archive.today's aggressive anti-bot throttling: persistent
 session cookies, gentle pacing, challenge detection, and an optional headless
@@ -43,6 +43,18 @@ images (normalized to JPEG/PNG), and a document-local stylesheet. Kindle
 
 Exit codes: `0` success, `1` error, `2` archive.today anti-bot block
 (retry later, use `--browser`, or clear the captcha in a browser once).
+
+## Tests
+
+```bash
+uv pip install -e '.[dev]'
+uv run pytest          # requires >75% coverage (currently ~93%)
+```
+
+Hermetic — no real network: fetch tests use a local mock archive.today
+server, image tests use local HTTP servers and files, and the extraction
+pipeline is exercised against the committed `Pxjvq.html` snapshot fixture.
+CI runs the same suite on GitHub Actions (`.github/workflows/ci.yml`).
 
 ## How it works
 

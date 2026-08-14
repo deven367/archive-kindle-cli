@@ -5,8 +5,8 @@ Handoff notes for any agent (or future me) continuing this project.
 ## Goal
 
 CLI that takes an archive.today (archive.is) snapshot URL and produces a
-Kindle-readable EPUB with images. Later: a browser extension wrapping the same
-core.
+Kindle-readable EPUB with images. (Browser extension was prototyped and
+dropped on user decision 2026-08-14 — CLI only.)
 
 Working example: `archive.is/Pxjvq` → Caravan article "What we cannot ignore
 about Manmohan Singh" (paywalled on the live site; the snapshot has the full
@@ -74,19 +74,24 @@ Validate: unzip -l; lxml-parse every .opf/.ncx/.xhtml; check chapter img refs
 exist in package (epub_builder now adds EpubImage items — earlier bug: refs
 without files).
 
+## Tests & CI (2026-08-14)
+
+- pytest suite (50 tests) with `--cov-fail-under=75`: 92.5% coverage.
+  Hermetic: mock archive.today server, local image servers, committed
+  Pxjvq.html fixture. `uv run pytest` runs it.
+- GitHub Actions workflow `.github/workflows/ci.yml` (ubuntu, python 3.13,
+  `uv sync --extra dev` + `uv run pytest`). uv.lock committed.
+- Closes issue #3.
+
 ## Known issues / next steps
 
-- [ ] Author extraction weak: Caravan JSON-LD unparseable in snapshot; meta
-      author absent → falls back to "archive.today". Low priority.
+- [ ] Author extraction: JSON-LD author now captured before script removal
+      (issue #1) — works when the JSON parses; Caravan's snapshot JSON-LD is
+      malformed so it still falls back to "archive.today". Low priority.
 - [ ] Cover: uses first ≥200x150 image (may be landscape; Kindle letterboxes).
       Fine for now.
-- [ ] No tests yet — add pytest fixtures using Pxjvq.html once live-fetch is
-      verified (extraction is the valuable unit).
-- [ ] Browser extension: reuse `extract.py` + `epub_builder.py` (pure
-      functions, no network except images); extension fetches snapshot HTML
-      via its own context (user's cookies/network avoids the throttle).
-- [ ] README.md still empty — write usage + install (`uv pip install -e .`,
-      `uv pip install '.[browser]'` for playwright).
+- [ ] Verify live fetch works once the archive.today IP block clears (see
+      issue #2).
 - [ ] Consider `--keep-urls` / link handling in EPUB (links currently
       preserved but mostly dead in readers; acceptable).
 

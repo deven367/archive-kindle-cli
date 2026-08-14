@@ -9,10 +9,8 @@ from typing import Annotated, Optional
 import typer
 
 from . import __version__
-from .epub_builder import build_epub, _slugify
-from .extract import extract_article
 from .fetch import CaptchaBlocked, FetchError, fetch_snapshot
-from .images import download_images
+from .pipeline import NoContentError, convert_html
 
 app = typer.Typer(
     help="Convert archive.today snapshots into Kindle-ready EPUBs.",
@@ -69,48 +67,30 @@ def convert(
             eprint(f"reading {file}")
             html = file.read_text(encoding="utf-8", errors="replace")
             source_url = url if url.startswith("http") else None
-            base_url = source_url
         else:
             eprint(f"fetching {url}")
             html = fetch_snapshot(
                 url, cache_dir, use_browser=browser, timeout=60.0
             )
             source_url = None
-            base_url = None
 
         eprint("extracting content")
-        article = extract_article(html, source_url=source_url, base_url=base_url)
-
-        if not article.body.strip():
-            eprint("no readable content found in the page")
-            raise typer.Exit(1)
-
-        assets, cover = download_images(
-            article.images,
-            cache_dir=cache_dir / "images",
-            referer=source_url,
+        out_path = convert_html(
+            html,
+            source_url=source_url,
+            out_path=output,
+            cache_dir=cache_dir,
+            title=title,
             no_images=no_images,
             max_images=max_images,
             local_base=file.parent if file is not None else None,
             verbose=verbose,
         )
-        eprint(
-            f"images: {len(assets)} downloaded"
-            + ("" if assets else " (none)")
-        )
-
-        out_path = output or Path(f"{_slugify(title or article.title)}.epub")
-        build_epub(
-            article,
-            assets,
-            cover,
-            out_path,
-            title_override=title,
-        )
+        eprint("done")
     except CaptchaBlocked as exc:
         eprint(f"error: {exc}")
         raise typer.Exit(2) from exc
-    except (FetchError, OSError) as exc:
+    except (FetchError, NoContentError, OSError) as exc:
         eprint(f"error: {exc}")
         raise typer.Exit(1) from exc
 

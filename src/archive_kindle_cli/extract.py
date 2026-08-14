@@ -300,8 +300,11 @@ def extract_article(
         if el.attrs is None:
             el.attrs = {}
 
-    # Resolve the original URL before chrome removal (the toolbar carries it).
+    # Resolve metadata and capture JSON-LD BEFORE junk removal: the toolbar
+    # carries the original URL, and script tags (JSON-LD) get stripped.
     canonical = _resolve_source_url(soup, source_url)
+    author = _resolve_author(soup)
+    jsonld_body = _jsonld_article_body(soup)
 
     if _is_archive_snapshot(soup):
         _remove_archive_chrome(soup)
@@ -312,13 +315,10 @@ def extract_article(
     _collect_images(root, images)
 
     title = _resolve_title(soup, root)
-    author = _resolve_author(soup)
     language = _resolve_language(soup)
 
     text_len = len(root.get_text(" ", strip=True))
-    body_text = ""
-    if text_len < _MIN_CONTENT_CHARS:
-        body_text = _jsonld_article_body(soup)
+    body_text = jsonld_body if text_len < _MIN_CONTENT_CHARS else ""
 
     if body_text:
         body = _paragraphs_from_text(body_text)
