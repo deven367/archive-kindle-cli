@@ -4,8 +4,8 @@ CLI that converts [archive.today](https://archive.ph/) (archive.is) snapshots
 into Kindle-ready EPUBs with images.
 
 Works around archive.today's aggressive anti-bot throttling: persistent
-session cookies, gentle pacing, challenge detection, and an optional headless
-Chromium fallback.
+session cookies, gentle pacing, challenge detection, and an optional
+interactive Chromium fallback.
 
 ## Install
 
@@ -24,6 +24,12 @@ archive-kindle convert Pxjvq -o manmohan.epub
 archive-kindle convert https://archive.ph/AbCdE --browser --verbose
 ```
 
+With `--browser` a **visible** Chromium window opens (persistent profile). If
+archive.today shows its CAPTCHA, solve it in that window — the CLI waits (3
+min default) and continues automatically once the snapshot loads. The solved
+cookies are saved to the session cache, so later runs (including plain
+non-`--browser` fetches) reuse the clearance.
+
 Options:
 
 | Flag | Meaning |
@@ -31,7 +37,7 @@ Options:
 | `-o, --output PATH` | output `.epub` (default `<title>.epub`) |
 | `--title T` | override the document title |
 | `--no-images` | skip image download |
-| `--browser` | fetch via headless Chromium (needs `[browser]` extra) |
+| `--browser` | open a visible Chromium to solve the CAPTCHA interactively (needs `[browser]` extra) |
 | `--file PATH` | build from a local HTML file instead of fetching (dev/testing aid; supports browser-saved pages) |
 | `--cache-dir PATH` | session cookie cache (default `~/.cache/archive-kindle`) |
 | `--max-images N` | cap downloads (default 150) |
@@ -60,7 +66,7 @@ CI runs the same suite on GitHub Actions (`.github/workflows/ci.yml`).
 
 1. **fetch** — cookie-primed session on `archive.ph`, snapshot request with
    referer, 2-attempt backoff; detects the reCAPTCHA challenge and reports it
-   clearly; `--browser` runs the fetch in headless Chromium.
+   clearly; `--browser` opens a visible Chromium for interactive solving.
 2. **extract** — strips the archive.today toolbar (`#HEADER`), removes ads /
    nav / paywall boxes, picks the content root (`#CONTENT`), keeps headings /
    paragraphs / lists / tables / quotes / code / images, handles

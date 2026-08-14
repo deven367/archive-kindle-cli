@@ -8,6 +8,10 @@ CLI that takes an archive.today (archive.is) snapshot URL and produces a
 Kindle-readable EPUB with images. (Browser extension was prototyped and
 dropped on user decision 2026-08-14 — CLI only.)
 
+`--browser` is *interactive*: a headed Chromium with a persistent profile
+(`~/.cache/archive-kindle/browser-profile`) opens for the user to solve the
+CAPTCHA in; solved cookies are copied back into the requests jar.
+
 Working example: `archive.is/Pxjvq` → Caravan article "What we cannot ignore
 about Manmohan Singh" (paywalled on the live site; the snapshot has the full
 text).

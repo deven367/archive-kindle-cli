@@ -154,22 +154,28 @@ class FakePage:
 class FakeContext:
     def __init__(self, html):
         self._html = html
+        self.pages = [FakePage(html)]
 
     def new_page(self):
-        return FakePage(self._html)
+        page = FakePage(self._html)
+        self.pages.append(page)
+        return page
+
+    def cookies(self):
+        return []
 
 
-class FakeBrowser:
+class FakeChromium:
     def __init__(self, html):
         self._html = html
 
-    def new_context(self, **kwargs):
+    def launch_persistent_context(self, **kwargs):
         return FakeContext(self._html)
 
 
 class FakePlaywright:
-    def __init__(self, browser):
-        self.chromium = SimpleNamespace(launch=lambda **k: browser)
+    def __init__(self, html):
+        self.chromium = FakeChromium(html)
 
     def __enter__(self):
         return self
@@ -179,35 +185,19 @@ class FakePlaywright:
 
 
 def _install_fake_playwright(monkeypatch, html):
-    sync_api = SimpleNamespace(
-        sync_playwright=lambda: FakePlaywright(FakeBrowser(html))
-    )
+    sync_api = SimpleNamespace(sync_playwright=lambda: FakePlaywright(html))
     monkeypatch.setitem(sys.modules, "playwright", SimpleNamespace(sync_api=sync_api))
     monkeypatch.setitem(sys.modules, "playwright.sync_api", sync_api)
 
 
 def test_browser_fetch_success(monkeypatch, cache_dir):
-    _install_fake_playwright(monkeypatch, SNAPSHOT_BODY)
+    snapshot = "<html><body><div id='HEADER'></div><div id='CONTENT'>x</div></body></html>"
+    _install_fake_playwright(monkeypatch, snapshot)
     body = F.fetch_snapshot("Pxjvq", cache_dir, use_browser=True)
-    assert body == SNAPSHOT_BODY
+    assert body == snapshot
 
 
-def test_browser_fetch_missing_playwright(monkeypatch, cache_dir):
-    monkeypatch.delitem(sys.modules, "playwright", raising=False)
-    monkeypatch.delitem(sys.modules, "playwright.sync_api", raising=False)
-    orig_import = __import__
-
-    def no_playwright(name, *args, **kwargs):
-        if name == "playwright.sync_api":
-            raise ImportError("no playwright")
-        return orig_import(name, *args, **kwargs)
-
-    monkeypatch.setattr("builtins.__import__", no_playwright)
-    with pytest.raises(F.FetchError, match="playwright"):
-        F.fetch_snapshot("Pxjvq", cache_dir, use_browser=True)
-
-
-def test_browser_fetch_captcha(monkeypatch, cache_dir):
+def test_browser_fetch_still_challenge_raises(monkeypatch, cache_dir):
     import itertools
 
     challenge = '<html><div id="g-recaptcha"></div></html>'
@@ -226,4 +216,40 @@ def test_browser_fetch_captcha(monkeypatch, cache_dir):
 
     monkeypatch.setattr("archive_kindle_cli.fetch.time", FakeTime)
     with pytest.raises(F.CaptchaBlocked):
+        F.fetch_snapshot("Pxjvq", cache_dir, use_browser=True)
+
+
+def test_browser_fetch_non_snapshot_raises(monkeypatch, cache_dir):
+    import itertools
+
+    # challenge cleared but page is not an archive snapshot -> still blocked
+    _install_fake_playwright(monkeypatch, "<html><body>not a snapshot</body></html>")
+    counter = itertools.count()
+
+    class FakeTime:
+        @staticmethod
+        def monotonic():
+            return next(counter)
+
+        @staticmethod
+        def sleep(_seconds):
+            return None
+
+    monkeypatch.setattr("archive_kindle_cli.fetch.time", FakeTime)
+    with pytest.raises(F.CaptchaBlocked):
+        F.fetch_snapshot("Pxjvq", cache_dir, use_browser=True)
+
+
+def test_browser_fetch_missing_playwright(monkeypatch, cache_dir):
+    monkeypatch.delitem(sys.modules, "playwright", raising=False)
+    monkeypatch.delitem(sys.modules, "playwright.sync_api", raising=False)
+    orig_import = __import__
+
+    def no_playwright(name, *args, **kwargs):
+        if name == "playwright.sync_api":
+            raise ImportError("no playwright")
+        return orig_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", no_playwright)
+    with pytest.raises(F.FetchError, match="playwright"):
         F.fetch_snapshot("Pxjvq", cache_dir, use_browser=True)

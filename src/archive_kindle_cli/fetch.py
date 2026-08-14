@@ -9,8 +9,9 @@ and optionally falls back to a headless browser.
 from __future__ import annotations
 
 import re
+import sys
 import time
-from http.cookiejar import MozillaCookieJar
+from http.cookiejar import Cookie, MozillaCookieJar
 from pathlib import Path
 
 import requests
@@ -103,33 +104,92 @@ def _new_session(cache_dir: Path) -> requests.Session:
     session.cookies = jar
     return session
 
+_SNAPSHOT_ID_RE = re.compile(r'id=["\'](?:HEADER|CONTENT)["\']', re.IGNORECASE)
 
-def _fetch_browser(target: str, timeout: float) -> str:
-    """Fetch through headless Chromium; passes challenges that need JS."""
+
+def _is_snapshot(html: str) -> bool:
+    """A real snapshot page has archive.today's #HEADER/#CONTENT wrappers."""
+    return bool(_SNAPSHOT_ID_RE.search(html[:200_000]))
+
+
+def _browser_cookie_to_jar_cookie(c: dict) -> Cookie:
+    return Cookie(
+        version=0,
+        name=c["name"],
+        value=c["value"],
+        port=None,
+        port_specified=False,
+        domain=c.get("domain", ""),
+        domain_specified=bool(c.get("domain")),
+        domain_initial_dot=(c.get("domain") or "").startswith("."),
+        path=c.get("path", "/"),
+        path_specified=bool(c.get("path")),
+        secure=bool(c.get("secure")),
+        expires=c.get("expires", -1) or -1,
+        discard=False,
+        comment=None,
+        comment_url=None,
+        rest={"HttpOnly": c.get("httpOnly")},
+        rfc2109=False,
+    )
+
+
+def _save_browser_cookies(ctx, cache_dir: Path) -> None:
+    """Persist the browser session cookies so later requests reuse the clearance."""
+    jar = MozillaCookieJar(str(cache_dir / "cookies.txt"))
+    try:
+        for c in ctx.cookies():
+            jar.set_cookie(_browser_cookie_to_jar_cookie(c))
+        jar.save(ignore_discard=True, ignore_expires=True)
+    except OSError:
+        pass
+
+
+def _fetch_browser(target: str, cache_dir: Path, timeout: float, wait: float) -> str:
+    """Fetch through a *headed* Chromium the user can solve the CAPTCHA in.
+
+    A persistent profile keeps the solved-captcha cookies across runs, and
+    those cookies are copied back into the requests jar so plain (non-browser)
+    fetches work afterwards too.
+    """
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:  # pragma: no cover - env-dependent
         raise FetchError(
             "playwright is not installed; run `uv pip install 'archive-kindle-cli[browser]'`"
         ) from exc
+
+    profile = cache_dir / "browser-profile"
+    profile.mkdir(parents=True, exist_ok=True)
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        ctx = browser.new_context(
-            user_agent=UA, viewport={"width": 1366, "height": 900}, locale="en-US"
+        ctx = p.chromium.launch_persistent_context(
+            user_data_dir=str(profile),
+            headless=False,
+            viewport={"width": 1366, "height": 900},
+            locale="en-US",
         )
-        page = ctx.new_page()
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
         page.goto(target, wait_until="domcontentloaded", timeout=timeout * 1000)
-        deadline = time.monotonic() + 30
+        print(
+            "A browser window opened. Complete the CAPTCHA there; the CLI "
+            "continues automatically once the snapshot loads.",
+            file=sys.stderr,
+        )
+        deadline = time.monotonic() + wait
+        html = ""
         while time.monotonic() < deadline:
             html = page.content()
-            if not _is_challenge(200, html):
-                return html
-            time.sleep(1)
-        raise CaptchaBlocked(
-            f"archive.today still served its anti-bot challenge in the browser for "
-            f"{target}. Open the URL in your own browser and complete the captcha once."
-        )
-
+            if not _is_challenge(200, html) and _is_snapshot(html):
+                break
+            time.sleep(2)
+        _save_browser_cookies(ctx, cache_dir)
+        if _is_challenge(200, html) or not _is_snapshot(html):
+            raise CaptchaBlocked(
+                f"CAPTCHA not completed in time for {target}. "
+                "Re-run with --browser and finish the challenge in the window."
+            )
+        return html
 
 def fetch_snapshot(
     url: str,
@@ -137,13 +197,14 @@ def fetch_snapshot(
     *,
     use_browser: bool = False,
     timeout: float = 60.0,
+    browser_wait: float = 180.0,
 ) -> str:
     """Return the snapshot page HTML for an archive.today URL or id."""
     target = normalize_url(url)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     if use_browser:
-        return _fetch_browser(target, timeout)
+        return _fetch_browser(target, cache_dir, timeout, browser_wait)
 
     session = _new_session(cache_dir)
     # Prime the session on the homepage; it sets the site cookie that keeps
