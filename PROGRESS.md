@@ -31,6 +31,12 @@ text).
 - [x] Verified end-to-end against the REAL snapshot (`--file Pxjvq.html`):
       2491 words, 1 real image (800x560), valid XML throughout, no missing
       refs, correct title/author/source metadata.
+- [x] Fetch layer verified against a local mock archive.ph server: happy
+      path (priming + snapshot + cookie jar persisted), retry-after-429,
+      captcha body → CaptchaBlocked, invalid input rejection.
+- [ ] Live fetch of Pxjvq still UNVERIFIED (this IP remained 429-flagged the
+      whole session, ~1.5h+). Retry from a clean IP; file-mode + mock-server
+      tests cover the logic, only the real 200 path is unexercised.
 
 ## Verified facts about archive.today (important)
 
@@ -70,10 +76,6 @@ without files).
 
 ## Known issues / next steps
 
-- [ ] Live fetch of Pxjvq unverified end-to-end (IP throttled all session).
-      Retry `archive-kindle convert https://archive.is/Pxjvq` from a clean IP;
-      expect it to work now that file-mode is proven. If a page fetch still
-      429s after cooldown, investigate whether challenge is cookie-stateful.
 - [ ] Author extraction weak: Caravan JSON-LD unparseable in snapshot; meta
       author absent → falls back to "archive.today". Low priority.
 - [ ] Cover: uses first ≥200x150 image (may be landscape; Kindle letterboxes).
