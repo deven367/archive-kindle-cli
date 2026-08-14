@@ -1,2 +1,3 @@
-def hello() -> str:
-    return "Hello from archive-kindle-cli!"
+"""archive-kindle-cli: archive.today snapshots to Kindle EPUBs."""
+
+__version__ = "0.1.0"
