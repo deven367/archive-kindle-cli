@@ -11,7 +11,7 @@ import typer
 from . import __version__
 from .fetch import CaptchaBlocked, FetchError, fetch_snapshot, normalize_url
 from .pipeline import NoContentError, convert_html
-from .send import SendError, send_epub
+from .send import SendError, check_send_env, send_epub
 
 app = typer.Typer(
     help="Convert archive.today snapshots into Kindle-ready EPUBs.",
@@ -63,10 +63,19 @@ def convert(
     ] = False,
     send: Annotated[
         bool,
-        typer.Option("--send", help="email the EPUB to your Kindle (needs AK_SMTP_USER/AK_SMTP_PASSWORD env vars)"),
+        typer.Option("--send", help="email the EPUB to your Kindle (needs AK_SMTP_USER, AK_SMTP_PASSWORD, AK_KINDLE_EMAIL env vars)"),
     ] = False,
 ) -> None:
     """Convert URL to EPUB."""
+    if send:
+        # Fail before doing any fetch/convert work: a missing env var is a
+        # one-line fix, and the user shouldn't wait out a conversion to learn.
+        try:
+            check_send_env()
+        except SendError as exc:
+            eprint(f"error: {exc}")
+            raise typer.Exit(1) from exc
+
     try:
         if file is not None:
             eprint(f"reading {file}")

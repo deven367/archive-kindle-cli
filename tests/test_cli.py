@@ -117,6 +117,9 @@ def test_convert_send_success(monkeypatch, tmp_path, article_html):
         return "deven367@kindle.com"
 
     monkeypatch.setattr("archive_kindle_cli.cli.send_epub", fake_send)
+    monkeypatch.setenv("AK_SMTP_USER", "me@gmail.com")
+    monkeypatch.setenv("AK_SMTP_PASSWORD", "app-pass")
+    monkeypatch.setenv("AK_KINDLE_EMAIL", "deven367@kindle.com")
     result = runner.invoke(
         app,
         [
@@ -145,6 +148,9 @@ def test_convert_send_failure_keeps_epub(monkeypatch, tmp_path, article_html):
         raise SendError("SMTP send failed: connection refused")
 
     monkeypatch.setattr("archive_kindle_cli.cli.send_epub", fail_send)
+    monkeypatch.setenv("AK_SMTP_USER", "me@gmail.com")
+    monkeypatch.setenv("AK_SMTP_PASSWORD", "app-pass")
+    monkeypatch.setenv("AK_KINDLE_EMAIL", "deven367@kindle.com")
     result = runner.invoke(
         app,
         [
@@ -159,3 +165,54 @@ def test_convert_send_failure_keeps_epub(monkeypatch, tmp_path, article_html):
     assert result.exit_code == 1
     assert "connection refused" in result.output
     assert out.exists()  # EPUB is still saved locally
+
+
+def test_convert_send_missing_env_fails_before_fetch(monkeypatch, tmp_path):
+    monkeypatch.delenv("AK_SMTP_USER", raising=False)
+    monkeypatch.delenv("AK_SMTP_PASSWORD", raising=False)
+    monkeypatch.delenv("AK_KINDLE_EMAIL", raising=False)
+
+    def boom(*a, **k):
+        raise AssertionError("fetch must not run when send env is missing")
+
+    monkeypatch.setattr("archive_kindle_cli.cli.fetch_snapshot", boom)
+    result = runner.invoke(
+        app,
+        ["convert", "--send", "https://archive.ph/Pxjvq", "--cache-dir", "/tmp/x"],
+    )
+    assert result.exit_code == 1
+    assert "AK_SMTP_USER" in result.output
+    assert "AK_SMTP_PASSWORD" in result.output
+    assert "AK_KINDLE_EMAIL" in result.output
+
+
+def test_convert_send_config_from_env_file(monkeypatch, tmp_path, article_html):
+    src = tmp_path / "page.html"
+    src.write_text(article_html)
+    out = tmp_path / "out.epub"
+    (tmp_path / ".env").write_text(
+        "AK_SMTP_USER=me@gmail.com\n"
+        "AK_SMTP_PASSWORD=app-pass\n"
+        "AK_KINDLE_EMAIL=deven367@kindle.com\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    sent = []
+
+    def fake_send(path, **kwargs):
+        sent.append(path)
+        return "deven367@kindle.com"
+
+    monkeypatch.setattr("archive_kindle_cli.cli.send_epub", fake_send)
+    result = runner.invoke(
+        app,
+        [
+            "convert",
+            "--file", str(src),
+            "--no-images",
+            "-o", str(out),
+            "--send",
+            "https://example.com/politics/test-article",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert sent == [out]

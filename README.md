@@ -70,7 +70,18 @@ read):
 | `AK_SMTP_PASSWORD` | app password for that account (Gmail/Outlook require one) | — |
 | `AK_SMTP_HOST` | SMTP server | `smtp.gmail.com` |
 | `AK_SMTP_PORT` | SMTP port (`465` = implicit TLS, otherwise STARTTLS) | `587` |
-| `AK_KINDLE_EMAIL` | recipient `@kindle.com` address | `deven367@kindle.com` |
+| `AK_KINDLE_EMAIL` | recipient `@kindle.com` address (required) | — |
+
+`AK_SMTP_USER`, `AK_SMTP_PASSWORD`, and `AK_KINDLE_EMAIL` are all required —
+the CLI checks them before converting and exits with a message naming exactly
+which are missing, so a typo'd or unset variable surfaces as a one-line fix
+instead of a cryptic SMTP error. There is no default recipient: the address
+must always be explicit.
+
+Instead of exporting the variables, you can put them in a `.env` file in the
+directory you run the CLI from (`KEY=VALUE` lines; `#` comments and an
+optional `export` prefix are supported). Already-set shell variables win over
+the file. `.env` is gitignored.
 
 Amazon specifics:
 
@@ -89,6 +100,9 @@ Amazon specifics:
 uv pip install -e '.[dev]'
 uv run pytest          # requires >75% coverage (currently ~93%)
 ```
+
+Or use the Makefile: `make env` (create venv + install dev extras),
+`make sync` (refresh `uv.lock` and sync the environment), `make test`.
 
 Hermetic — no real network: fetch tests use a local mock archive.today
 server, image tests use local HTTP servers and files, and the extraction

@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Local secrets (send config)
+.env
+
 # Test artifacts
 .coverage
 htmlcov/

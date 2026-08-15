@@ -17,7 +17,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: make sync
 
       - name: Run tests with coverage
-        run: uv run pytest
+        run: make test
