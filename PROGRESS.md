@@ -18,8 +18,10 @@ A browser extension was prototyped and dropped on user decision (CLI only).
 - Fetch, extract, image download, EPUB build, and CLI all work end-to-end
   against the live site (2491 words + embedded 800×560 image, correct
   title/author/source metadata).
-- 55 hermetic tests, 92% coverage, GitHub Actions CI green.
-- Issues #1–#5 all closed.
+- 65 hermetic tests, 93% coverage, GitHub Actions CI green.
+- Issues #1–#5 closed; #7 (Send to Kindle via `--send`) implemented and
+  pending merge. #6 (arbitrary live URLs via modular fetch backends) is the
+  open long-term item.
 
 ## Architecture
 
@@ -30,6 +32,7 @@ A browser extension was prototyped and dropped on user decision (CLI only).
 | `images.py` | download with sha1 dedupe, Pillow normalization (WebP/GIF/PNG→JPEG), logo filter, local-file fallback |
 | `epub_builder.py` | ebooklib EPUB3 + NCX: cover (image or generated), chapter XHTML, TOC from h2/h3, Kindle CSS, `dc:source` |
 | `pipeline.py` | `convert_html()` — shared orchestration for CLI (and any future frontend) |
+| `send.py` | `--send`: emails the built EPUB to the Kindle address via stdlib SMTP (env-var config, 50 MB check, actionable errors) |
 | `cli.py` | typer entrypoint: `convert` (the main command) and `version` |
 
 ## Verified archive.today behavior (important, non-obvious)

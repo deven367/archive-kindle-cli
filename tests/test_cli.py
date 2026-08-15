@@ -104,3 +104,58 @@ def test_convert_empty_html_file_exit_1(tmp_path):
     src.write_text("<html></html>")
     result = runner.invoke(app, ["convert", "--file", str(src), "x"])
     assert result.exit_code == 1
+
+
+def test_convert_send_success(monkeypatch, tmp_path, article_html):
+    src = tmp_path / "page.html"
+    src.write_text(article_html)
+    out = tmp_path / "out.epub"
+    sent = []
+
+    def fake_send(path, **kwargs):
+        sent.append(path)
+        return "deven367@kindle.com"
+
+    monkeypatch.setattr("archive_kindle_cli.cli.send_epub", fake_send)
+    result = runner.invoke(
+        app,
+        [
+            "convert",
+            "--file", str(src),
+            "--no-images",
+            "-o", str(out),
+            "--send",
+            "https://example.com/politics/test-article",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert out.exists()
+    assert sent == [out]
+    assert "deven367@kindle.com" in result.output
+
+
+def test_convert_send_failure_keeps_epub(monkeypatch, tmp_path, article_html):
+    from archive_kindle_cli.send import SendError
+
+    src = tmp_path / "page.html"
+    src.write_text(article_html)
+    out = tmp_path / "out.epub"
+
+    def fail_send(path, **kwargs):
+        raise SendError("SMTP send failed: connection refused")
+
+    monkeypatch.setattr("archive_kindle_cli.cli.send_epub", fail_send)
+    result = runner.invoke(
+        app,
+        [
+            "convert",
+            "--file", str(src),
+            "--no-images",
+            "-o", str(out),
+            "--send",
+            "https://example.com/politics/test-article",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "connection refused" in result.output
+    assert out.exists()  # EPUB is still saved locally

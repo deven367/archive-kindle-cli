@@ -22,6 +22,7 @@ uv run playwright install chromium
 archive-kindle convert https://archive.is/Pxjvq
 archive-kindle convert Pxjvq -o manmohan.epub
 archive-kindle convert https://archive.ph/AbCdE --browser --verbose
+archive-kindle convert https://archive.ph/Pxjvq --send   # email the EPUB to your Kindle
 ```
 
 With `--browser` a **visible** Chromium window opens (persistent profile). If
@@ -42,13 +43,45 @@ Options:
 | `--cache-dir PATH` | session cookie cache (default `~/.cache/archive-kindle`) |
 | `--max-images N` | cap downloads (default 150) |
 | `--verbose` | per-image progress on stderr |
+| `--send` | email the built EPUB to your Kindle via Send to Kindle (opt-in; needs SMTP env vars below) |
 
 Output EPUBs are EPUB 3 with NCX (legacy-device TOC), a cover, embedded
 images (normalized to JPEG/PNG), and a document-local stylesheet. Kindle
 (2022+) reads EPUB natively; Send to Kindle converts to KFX/AZW3.
 
-Exit codes: `0` success, `1` error, `2` archive.today anti-bot block
-(retry later, use `--browser`, or clear the captcha in a browser once).
+Exit codes: `0` success, `1` error (including a failed email send), `2`
+archive.today anti-bot block (retry later, use `--browser`, or clear the
+captcha in a browser once).
+
+## Send to Kindle (`--send`)
+
+`--send` emails the built EPUB to your Kindle address after conversion —
+one command does convert + deliver. Amazon has no public Personal Documents
+API, so this uses plain SMTP (stdlib `smtplib`; zero new dependencies).
+The EPUB is always saved locally first; a send failure exits `1` but keeps
+the file.
+
+Configure via environment variables (opt-in: without `--send`, nothing is
+read):
+
+| Variable | Meaning | Default |
+| --- | --- | --- |
+| `AK_SMTP_USER` | sender email address (required) | — |
+| `AK_SMTP_PASSWORD` | app password for that account (Gmail/Outlook require one) | — |
+| `AK_SMTP_HOST` | SMTP server | `smtp.gmail.com` |
+| `AK_SMTP_PORT` | SMTP port (`465` = implicit TLS, otherwise STARTTLS) | `587` |
+| `AK_KINDLE_EMAIL` | recipient `@kindle.com` address | `deven367@kindle.com` |
+
+Amazon specifics:
+
+- The **sender address must be whitelisted**: amazon.com → Content & Devices
+  → Preferences → Personal Document Settings → Approved personal document
+  e-mail list. The CLI cannot detect a missing whitelist entry (SMTP succeeds;
+  Amazon drops it at the far end) — if nothing arrives, check that list.
+- EPUB is a supported personal-document format; limit is 50 MB (the CLI
+  refuses larger files before sending).
+- Conversion on Amazon's side is asynchronous (minutes). Re-sends create
+  duplicate documents in your library (Amazon keeps history).
 
 ## Tests
 
