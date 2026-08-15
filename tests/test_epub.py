@@ -80,6 +80,7 @@ def test_missing_asset_drops_img_tag(tmp_path):
     z = zipfile.ZipFile(out)
     ch = z.read("EPUB/chapter.xhtml").decode()
     assert "images/0000" not in ch  # placeholder removed, not left dangling
+    assert "<img" not in ch  # whole tag removed — no converter-hostile src-less <img>
     assert _parse_all(z) == []
 
 

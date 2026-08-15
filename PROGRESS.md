@@ -18,8 +18,10 @@ A browser extension was prototyped and dropped on user decision (CLI only).
 - Fetch, extract, image download, EPUB build, and CLI all work end-to-end
   against the live site (2491 words + embedded 800×560 image, correct
   title/author/source metadata).
-- 55 hermetic tests, 92% coverage, GitHub Actions CI green.
-- Issues #1–#5 all closed.
+- 65 hermetic tests, 93% coverage, GitHub Actions CI green.
+- Issues #1–#5 closed; #7 (Send to Kindle via `--send`) implemented and
+  pending merge. #6 (arbitrary live URLs via modular fetch backends) is the
+  open long-term item.
 
 ## Architecture
 
@@ -30,6 +32,7 @@ A browser extension was prototyped and dropped on user decision (CLI only).
 | `images.py` | download with sha1 dedupe, Pillow normalization (WebP/GIF/PNG→JPEG), logo filter, local-file fallback |
 | `epub_builder.py` | ebooklib EPUB3 + NCX: cover (image or generated), chapter XHTML, TOC from h2/h3, Kindle CSS, `dc:source` |
 | `pipeline.py` | `convert_html()` — shared orchestration for CLI (and any future frontend) |
+| `send.py` | `--send`: emails the built EPUB to the Kindle address via stdlib SMTP (env-var config, 50 MB check, actionable errors) |
 | `cli.py` | typer entrypoint: `convert` (the main command) and `version` |
 
 ## Verified archive.today behavior (important, non-obvious)
@@ -48,6 +51,12 @@ A browser extension was prototyped and dropped on user decision (CLI only).
   resolved against `https://archive.ph/` before download.
 - Browser-saved ("complete") pages rewrite image srcs to local
   `./<page>_files/<hash>.<ext>` paths — handled by `--file` + local-base.
+- **Snapshots inject a scroll-progress widget**: a `#hashtags` table of
+  `id="0%"`..`id="100%"` jump cells wrapped in `<!--[if !IE]><!-->`
+  conditional comments. Amazon's converter rejects the resulting XHTML with
+  **E999 - Send to Kindle Internal Error** (verified: Gmail delivered, Amazon
+  bounced). Extractor strips the widget, all comments, and drops failed-image
+  `<img>` tags wholesale (a src-less `<img>` also trips the converter).
 - Caravan quirks seen in Pxjvq: broken nesting (`<img>` inside `<source>`
   inside `<picture>`), hero image nested inside the site-nav `<header>`,
   paywall boxes mid-article, empty JSON-LD, author only present as a byline

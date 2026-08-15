@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from urllib.parse import urljoin
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, Comment, Tag
 
 _MIN_CONTENT_CHARS = 400
 
@@ -112,12 +112,21 @@ def _remove_archive_chrome(soup: BeautifulSoup) -> None:
         "[class*='toolbar']",
         "[id*='toolbar']",
         "[class*='navbar']",
+        # archive.today's scroll-progress widget: a table of #0%..#100%
+        # jump links with invalid XML ids ("0%") that break Kindle's converter.
+        "[id*='hashtag']",
     ):
         for el in soup.select(selector):
             el.decompose()
 
 
 def _remove_junk(root: Tag) -> None:
+    # HTML comments are never article content. archive.today wraps its
+    # progress widget in <!--[if !IE]><!--> conditional markers; comments
+    # as DOM nodes never wrap elements, so removing them is always safe.
+    for comment in root.find_all(string=lambda s: isinstance(s, Comment)):
+        comment.extract()
+
     # Sites nest article hero images inside chrome <header>/<aside> blocks.
     # Hoist the images out first so the image survives the block removal.
     for el in root.select("header, aside"):

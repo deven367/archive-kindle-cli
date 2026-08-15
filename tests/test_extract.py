@@ -98,6 +98,26 @@ def test_empty_page_yields_empty_body():
     assert art.body.strip() == ""
 
 
+def test_archive_snapshot_strips_progress_widget_and_comments():
+    # archive.today's scroll-progress widget: invalid XML ids ("0%") wrapped
+    # in conditional comments — breaks Kindle's converter (E999).
+    html = (
+        '<html><body><a href="https://archive.ph/x">archive.today</a>'
+        '<div id="CONTENT"><article><h1>T</h1><p>' + "words " * 100 + "</p>"
+        "<!--[if !IE]><!--><table border=\"0\" id=\"hashtags\"><tbody>"
+        '<tr><td id="0%"><a href="https://archive.ph/x#0%">0%</a></td></tr>'
+        '<tr><td id="100%"><a href="https://archive.ph/x#100%">100%</a></td></tr>'
+        "</tbody></table><!--<![endif]-->"
+        "</article></div></body></html>"
+    )
+    art = extract_article(html)
+    assert "hashtags" not in art.body
+    assert "0%" not in art.body
+    assert "<table" not in art.body
+    assert "<!--" not in art.body
+    assert "if !IE" not in art.body
+
+
 def test_archive_detection_without_toolbar_links():
     # wordmark link detection
     html = (

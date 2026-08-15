@@ -26,6 +26,11 @@ def test_convert_real_snapshot_end_to_end(
     words = len(re.sub(r"<[^>]+>", " ", body).split())
     assert words > 2000  # full article, not the paywalled teaser
     assert "Manmohan" in body
+    # no archive.today chrome that trips Kindle's converter (E999)
+    assert "<!--" not in body
+    assert "hashtag" not in body
+    for m in re.finditer(r"<img([^>]*)>", body):
+        assert "src=" in m.group(1), m.group(0)  # no src-less <img>
 
     for name in z.namelist():
         if name.endswith((".xml", ".xhtml", ".opf", ".ncx")):

@@ -11,6 +11,7 @@ import typer
 from . import __version__
 from .fetch import CaptchaBlocked, FetchError, fetch_snapshot, normalize_url
 from .pipeline import NoContentError, convert_html
+from .send import SendError, send_epub
 
 app = typer.Typer(
     help="Convert archive.today snapshots into Kindle-ready EPUBs.",
@@ -60,6 +61,10 @@ def convert(
         bool,
         typer.Option("--verbose", help="verbose progress output"),
     ] = False,
+    send: Annotated[
+        bool,
+        typer.Option("--send", help="email the EPUB to your Kindle (needs AK_SMTP_USER/AK_SMTP_PASSWORD env vars)"),
+    ] = False,
 ) -> None:
     """Convert URL to EPUB."""
     try:
@@ -98,6 +103,24 @@ def convert(
         raise typer.Exit(1) from exc
 
     print(out_path)
+
+    if send:
+        eprint("sending to Kindle")
+        try:
+            recipient = send_epub(out_path)
+            eprint(f"emailed {out_path.name} to {recipient}")
+            eprint(
+                "conversion on Amazon's side is async (minutes); re-sends create "
+                "duplicate documents in your library"
+            )
+            eprint(
+                "if Amazon never delivers, approve the sender at amazon.com -> "
+                "Content & Devices -> Preferences -> Personal Document Settings"
+            )
+        except SendError as exc:
+            eprint(f"error: {exc}")
+            eprint(f"EPUB still saved at {out_path}")
+            raise typer.Exit(1) from exc
 
 
 @app.command()
