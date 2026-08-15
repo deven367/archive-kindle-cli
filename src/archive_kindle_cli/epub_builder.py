@@ -37,7 +37,9 @@ hr { margin: 1.5em 0; }
 
 #: void elements are serialized HTML-style by bs4; close them for XHTML.
 _VOID_RE = re.compile(r"<(img|br|hr|meta|link|input|source|area|base|col|embed|track|wbr)([^>]*?)(?<!/)>")
-_SRC_RE = re.compile(r'src="(images/\d{4})"')
+#: <img> tags whose download failed: drop the whole tag, not just the src —
+#: a src-less <img> is invalid XHTML and can trip Kindle's converter (E999).
+_IMG_NO_ASSET_RE = re.compile(r'<img[^>]*\bsrc="images/\d{4}"[^>]*>')
 
 
 def _slugify(text: str, fallback: str = "article") -> str:
@@ -170,7 +172,7 @@ def build_epub(
                 )
             )
             added_filenames.add(asset.filename)
-    body = _SRC_RE.sub("", body)  # drop images that failed to download
+    body = _IMG_NO_ASSET_RE.sub("", body)  # drop <img>s that failed to download
     chapter = epub.EpubHtml(uid="chapter", file_name="chapter.xhtml", title=title, lang=lang)
     chapter.content = _xhtml(body, title, lang)
     book.add_item(chapter)

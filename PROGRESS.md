@@ -51,6 +51,12 @@ A browser extension was prototyped and dropped on user decision (CLI only).
   resolved against `https://archive.ph/` before download.
 - Browser-saved ("complete") pages rewrite image srcs to local
   `./<page>_files/<hash>.<ext>` paths — handled by `--file` + local-base.
+- **Snapshots inject a scroll-progress widget**: a `#hashtags` table of
+  `id="0%"`..`id="100%"` jump cells wrapped in `<!--[if !IE]><!-->`
+  conditional comments. Amazon's converter rejects the resulting XHTML with
+  **E999 - Send to Kindle Internal Error** (verified: Gmail delivered, Amazon
+  bounced). Extractor strips the widget, all comments, and drops failed-image
+  `<img>` tags wholesale (a src-less `<img>` also trips the converter).
 - Caravan quirks seen in Pxjvq: broken nesting (`<img>` inside `<source>`
   inside `<picture>`), hero image nested inside the site-nav `<header>`,
   paywall boxes mid-article, empty JSON-LD, author only present as a byline
