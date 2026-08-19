@@ -171,6 +171,8 @@ def test_convert_send_missing_env_fails_before_fetch(monkeypatch, tmp_path):
     monkeypatch.delenv("AK_SMTP_USER", raising=False)
     monkeypatch.delenv("AK_SMTP_PASSWORD", raising=False)
     monkeypatch.delenv("AK_KINDLE_EMAIL", raising=False)
+    # isolate from any .env in the working directory (the loader reads CWD)
+    monkeypatch.chdir(tmp_path)
 
     def boom(*a, **k):
         raise AssertionError("fetch must not run when send env is missing")

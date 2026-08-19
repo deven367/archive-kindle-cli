@@ -45,6 +45,85 @@ def test_heading_ids_are_added_for_toc(snapshot_page_html):
     assert 'id="sec-0"' in art.body
 
 
+def test_nested_article_beats_wrapper_root():
+    # archive.today's #CONTENT wraps the whole saved page; when the page's
+    # own <article> carries most of the text it must become the root, so
+    # post-article chrome (recommended reading, author box) drops out.
+    html = (
+        "<!DOCTYPE html><html><head><title>Wrapper</title></head><body>"
+        '<div id="HEADER"><a href="https://archive.today/">archive.today webpage capture</a></div>'
+        '<div id="CONTENT">'
+        "<article><h1>Real Article</h1>"
+        "<p>" + "Article body sentence with several words. " * 60 + "</p>"
+        "<h2>Subheading</h2><p>More body text after the subheading.</p>"
+        "</article>"
+        '<section class="more-articles">'
+        "<h2>From the Wire</h2>"
+        '<h3><a href="/other">Some Other Article</a></h3>'
+        "<p>A blurb about the other article that is not part of this one.</p>"
+        "</section>"
+        "</div></body></html>"
+    )
+    art = extract_article(html)
+    assert "Real Article" in art.body
+    assert "Subheading" in art.body
+    assert "From the Wire" not in art.body
+    assert "Some Other Article" not in art.body
+
+
+def test_chrome_widgets_nested_in_article_removed():
+    # The Atlantic nests "Recommended Reading" and "About the Author" inside
+    # its <article>. Those are furniture: their block is dropped even though
+    # it is inside the picked content root.
+    html = (
+        "<!DOCTYPE html><html><head><title>Wrapper</title></head><body>"
+        '<div id="HEADER"><a href="https://archive.today/">archive.today webpage capture</a></div>'
+        '<div id="CONTENT"><article><h1>Real Article</h1>'
+        "<p>" + "Article body sentence with several words. " * 40 + "</p>"
+        '<div><h2>Recommended Reading</h2>'
+        '<h3><a href="/other">Some Other Article</a></h3>'
+        "<p>A blurb about the other article.</p></div>"
+        "<p>" + "Final body paragraph that must survive. " * 20 + "</p>"
+        '<div><h3>About the Author</h3><p>Author bio text goes here.</p></div>'
+        "</article></div></body></html>"
+    )
+    art = extract_article(html)
+    assert "Real Article" in art.body
+    assert "Final body paragraph" in art.body
+    assert "Recommended Reading" not in art.body
+    assert "Some Other Article" not in art.body
+    assert "About the Author" not in art.body
+    assert "Author bio text" not in art.body
+
+
+def test_large_section_with_chrome_heading_kept():
+    # A large section that merely starts with a chrome label is article
+    # content, not a widget: the size cap keeps it.
+    html = (
+        "<!DOCTYPE html><html><body>"
+        "<article><h1>Story</h1>"
+        '<section><h2>Recommended Reading</h2>'
+        "<p>" + "Substantive section body that is clearly real content. " * 60 + "</p>"
+        "</section></article></body></html>"
+    )
+    art = extract_article(html)
+    assert "Substantive section body" in art.body
+
+
+def test_chrome_heading_requires_exact_match():
+    # A title merely containing a chrome word ("Trending: X") is article
+    # content: the label match is exact, not a substring search.
+    html = (
+        "<!DOCTYPE html><html><body><article><h1>Story</h1>"
+        "<p>" + "Intro body text word. " * 40 + "</p>"
+        '<div><h2>Trending: A Short History</h2>'
+        "<p>" + "Section body text word. " * 30 + "</p></div>"
+        "</article></body></html>"
+    )
+    art = extract_article(html)
+    assert "Trending: A Short History" in art.body
+
+
 def test_scheme_relative_images_normalized(article_html):
     art = extract_article(article_html)
     # the header logo is hoisted then dropped (outside root); assert no bare // srcs

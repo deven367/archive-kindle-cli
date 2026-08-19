@@ -6,7 +6,12 @@ import zipfile
 from lxml import etree
 from PIL import Image
 
-from archive_kindle_cli.epub_builder import build_epub, _slugify, _xhtml
+from archive_kindle_cli.epub_builder import (
+    build_epub,
+    _slugify,
+    _toc_from_body,
+    _xhtml,
+)
 from archive_kindle_cli.extract import Article
 from archive_kindle_cli.images import ImageAsset
 
@@ -124,3 +129,21 @@ def test_xhtml_is_well_formed():
     content = _xhtml("<p>Hello <strong>world</strong></p><img src='images/0000'/>", "T", "en")
     etree.fromstring(content.encode())  # must not raise
     assert "<?xml" not in content  # prolog omitted on purpose
+
+
+def test_toc_labels_use_heading_text():
+    # Labels must be the heading's text (links stripped, entities decoded),
+    # not the anchor id — "Section: sec-0" was the old placeholder.
+    body = (
+        '<h2 id="sec-0">The Question</h2>'
+        '<p>para</p>'
+        '<h3 id="sec-1"><a href="#sec-1">Linked &amp; Nested Heading</a></h3>'
+    )
+    toc = _toc_from_body(body, "Title")
+    labels = [link.title for link in toc]
+    assert labels == ["Title", "The Question", "Linked & Nested Heading"]
+
+
+def test_toc_label_falls_back_to_id_when_heading_empty():
+    toc = _toc_from_body('<h2 id="sec-7">   </h2>', "Title")
+    assert [link.title for link in toc] == ["Title", "Section: sec-7"]

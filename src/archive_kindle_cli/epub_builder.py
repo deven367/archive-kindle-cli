@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import io
 import re
+from html import unescape
 from pathlib import Path
 
 from ebooklib import epub
@@ -40,6 +41,10 @@ _VOID_RE = re.compile(r"<(img|br|hr|meta|link|input|source|area|base|col|embed|t
 #: <img> tags whose download failed: drop the whole tag, not just the src —
 #: a src-less <img> is invalid XHTML and can trip Kindle's converter (E999).
 _IMG_NO_ASSET_RE = re.compile(r'<img[^>]*\bsrc="images/\d{4}"[^>]*>')
+#: h2/h3 anchors: capture id and inner markup (headings may wrap links).
+_HEADING_ANCHOR_RE = re.compile(r'<h[23][^>]*id="([^"]+)"[^>]*>(.*?)</h[23]>', re.S)
+#: strip tags to recover plain heading text for TOC labels.
+_TAG_RE = re.compile(r"<[^>]+>")
 
 
 def _slugify(text: str, fallback: str = "article") -> str:
@@ -120,12 +125,17 @@ def _xhtml(body_fragment: str, title: str, lang: str) -> str:
 
 
 def _toc_from_body(body: str, title: str) -> tuple:
-    anchors = re.findall(r'<h[23][^>]*id="([^"]+)"', body)
+    anchors = _HEADING_ANCHOR_RE.findall(body)
     if not anchors:
         return (epub.Link("chapter.xhtml", title, "chapter"),)
     toc = [epub.Link("chapter.xhtml", title, "chapter")]
-    for anchor in anchors:
-        toc.append(epub.Link(f"chapter.xhtml#{anchor}", f"Section: {anchor}", anchor))
+    for anchor, inner in anchors:
+        # Strip tags and decode entities so the label is the heading's text,
+        # not its anchor id (labels read "Section: sec-3" before).
+        label = " ".join(unescape(_TAG_RE.sub(" ", inner)).split())
+        if not label:
+            label = f"Section: {anchor}"
+        toc.append(epub.Link(f"chapter.xhtml#{anchor}", label, anchor))
     return tuple(toc)
 
 
