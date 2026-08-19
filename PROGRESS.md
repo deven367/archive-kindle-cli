@@ -5,13 +5,8 @@ Handoff notes for any agent (or future me) continuing this project.
 ## What this is
 
 `archive-kindle` — a CLI that converts an archive.today (archive.is)
-snapshot URL into a Kindle-readable EPUB with images.
-
-Working example: `archive.is/Pxjvq` → Caravan article "What we cannot ignore
-about Manmohan Singh" (paywalled on the live site; the snapshot carries the
-full text). Live fetch + image download both verified end-to-end.
-
-A browser extension was prototyped and dropped on user decision (CLI only).
+snapshot URL into a Kindle-readable EPUB with images. CLI only: a browser
+extension was prototyped and dropped on user decision.
 
 ## Current state — complete and verified
 
@@ -54,9 +49,11 @@ shared heuristics instead:
   ≥50% of its text yields to the inner one, so post-article chrome drops
   out (archive.today's `#CONTENT` around the page's own `<article>`,
   `<main>` around `<article>`).
-- **Caravan DOM damage**: broken `<img>`-in-`<source>` nesting resolved by
-  walking up to `<picture>`; hero images hoisted out of site `<header>`
-  before junk removal; author from byline links to `/author/<slug>`.
+- **Caravan DOM damage** (seen in Pxjvq): broken `<img>`-in-`<source>`
+  nesting resolved by walking up to `<picture>`; hero images hoisted out of
+  site `<header>` before junk removal; mid-article paywall boxes caught by
+  the text paywall detector; empty JSON-LD (visible DOM is used); author
+  from byline links to `/author/<slug>`.
 - **TOC labels** (`epub_builder._toc_from_body`): the heading's text with
   tags stripped and entities decoded — not the anchor id.
 
@@ -92,10 +89,6 @@ profile only when the generic path demonstrably fails for it.
   **E999 - Send to Kindle Internal Error** (verified: Gmail delivered, Amazon
   bounced). Extractor strips the widget, all comments, and drops failed-image
   `<img>` tags wholesale (a src-less `<img>` also trips the converter).
-- Caravan quirks seen in Pxjvq: broken nesting (`<img>` inside `<source>`
-  inside `<picture>`), hero image nested inside the site-nav `<header>`,
-  paywall boxes mid-article, empty JSON-LD, author only present as a byline
-  link to `/author/<slug>`.
 
 ## `--browser` semantics
 
@@ -108,7 +101,7 @@ copies the solved cookies into the requests jar so plain fetches work after.
 
 ```bash
 uv pip install -e '.[dev]'   # or: uv sync --extra dev
-uv run pytest                # >75% coverage required (currently ~92%)
+uv run pytest                # >75% coverage required
 ```
 
 Hermetic (no real network): mock archive.today server, local HTTP image
