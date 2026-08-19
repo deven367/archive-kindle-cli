@@ -16,6 +16,9 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Comment, Tag
 
 _MIN_CONTENT_CHARS = 400
+#: upper bound for a block to be treated as a site widget (see
+#: _is_chrome_heading); real article sections are far longer than this.
+_WIDGET_MAX_CHARS = 1500
 
 
 @dataclass
@@ -58,6 +61,62 @@ _PAYWALL_TEXT_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: Exact heading labels that name site widgets, not article sections. Some
+#: sites (The Atlantic) nest these widgets inside the <article> itself, so
+#: the content-root pick cannot drop them. Matching is exact (whitespace
+#: collapsed, case-insensitive) so a titled piece like "Trending: X" is kept.
+_CHROME_HEADINGS = frozenset(
+    {
+        "recommended reading",
+        "related reading",
+        "related article",
+        "related articles",
+        "related stories",
+        "related content",
+        "you may also like",
+        "you might also like",
+        "you may also want to read",
+        "keep reading",
+        "read more",
+        "continue reading",
+        "up next",
+        "next in this series",
+        "about the author",
+        "author bio",
+        "from the author",
+        "from the editor",
+        "from the editors",
+        "from the publisher",
+        "popular article",
+        "popular articles",
+        "popular post",
+        "popular posts",
+        "popular story",
+        "popular stories",
+        "popular links",
+        "trending",
+        "most popular",
+        "most read",
+        "most viewed",
+        "recent posts",
+        "recent articles",
+        "site information",
+        "about this site",
+        "more from",
+        "more on",
+        "more by",
+        "more like this",
+        "more to read",
+    }
+)
+#: "More from <author>" / "More on <topic>" / "More by <author>" widgets.
+_CHROME_HEADING_PREFIXES = ("more from ", "more on ", "more by ")
+
+
+def _is_chrome_heading(text: str) -> bool:
+    t = " ".join(text.split()).lower()
+    return t in _CHROME_HEADINGS or t.startswith(_CHROME_HEADING_PREFIXES)
+
 _CONTENT_SELECTORS = (
     "article",
     "main",
@@ -92,6 +151,7 @@ _BLOCK_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "blockquote"
                "pre", "table", "figure", "hr", "dl", "img"}
 _INLINE_TAGS = {"a", "strong", "em", "b", "i", "u", "s", "code", "br", "span",
                 "sub", "sup", "small", "q", "abbr", "cite", "mark"}
+_HEADING_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6")
 
 
 def _remove_archive_chrome(soup: BeautifulSoup) -> None:
@@ -152,20 +212,44 @@ def _remove_junk(root: Tag) -> None:
                 and not el.find("table")
             ):
                 el.decompose()
+    # Site widgets named by an exact chrome heading ("Recommended Reading",
+    # "About the Author", ...). Some sites (The Atlantic) nest these inside
+    # the <article>, so the content-root pick cannot drop them. Only small
+    # blocks are treated as widgets: a large section that merely starts with
+    # such a heading is article content and must survive.
+    for el in list(root.find_all(("div", "section"))):
+        if el.parent is None or el.find("table"):
+            continue
+        if len(el.get_text(" ", strip=True)) > _WIDGET_MAX_CHARS:
+            continue
+        heading = el.find(_HEADING_TAGS)
+        if heading is not None and _is_chrome_heading(heading.get_text(" ", strip=True)):
+            el.decompose()
 
 
 def _pick_content_root(soup: BeautifulSoup) -> Tag:
-    best: Tag | None = None
-    best_len = 0
+    candidates: list[tuple[Tag, int]] = []
     for selector in _CONTENT_SELECTORS:
         for el in soup.select(selector):
             length = len(el.get_text(" ", strip=True))
-            if length > best_len:
-                best, best_len = el, length
-    if best is not None and best_len >= _MIN_CONTENT_CHARS:
-        return best
-    # Fall back to the whole body (toolbar/chrome already removed).
-    return soup.body or soup
+            if length >= _MIN_CONTENT_CHARS:
+                candidates.append((el, length))
+    if not candidates:
+        # Fall back to the whole body (toolbar/chrome already removed).
+        return soup.body or soup
+    # A wrapper that contains another candidate carrying most of its text
+    # (e.g. archive.today's #CONTENT around the page's own <article>, or a
+    # page <main> around <article>) is not the article root: yield to it so
+    # post-article chrome (recommended reading, author box, footer) drops out.
+    survivors = [
+        (el, length)
+        for el, length in candidates
+        if not any(
+            el in other.parents and other_len >= length / 2
+            for other, other_len in candidates
+        )
+    ]
+    return max(survivors, key=lambda item: item[1])[0]
 
 
 def _collect_images(root: Tag, images: list[ImageRef], base_url: str | None = None) -> None:

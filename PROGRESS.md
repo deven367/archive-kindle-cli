@@ -5,23 +5,20 @@ Handoff notes for any agent (or future me) continuing this project.
 ## What this is
 
 `archive-kindle` — a CLI that converts an archive.today (archive.is)
-snapshot URL into a Kindle-readable EPUB with images.
-
-Working example: `archive.is/Pxjvq` → Caravan article "What we cannot ignore
-about Manmohan Singh" (paywalled on the live site; the snapshot carries the
-full text). Live fetch + image download both verified end-to-end.
-
-A browser extension was prototyped and dropped on user decision (CLI only).
+snapshot URL into a Kindle-readable EPUB with images. CLI only: a browser
+extension was prototyped and dropped on user decision.
 
 ## Current state — complete and verified
 
 - Fetch, extract, image download, EPUB build, and CLI all work end-to-end
   against the live site (2491 words + embedded 800×560 image, correct
   title/author/source metadata).
-- 65 hermetic tests, 93% coverage, GitHub Actions CI green.
-- Issues #1–#5 closed; #7 (Send to Kindle via `--send`) implemented and
-  pending merge. #6 (arbitrary live URLs via modular fetch backends) is the
-  open long-term item.
+- The Atlantic snapshot "The Ordinary Miracle of Existing" verified
+  end-to-end (1.3 MB EPUB, in-article "Recommended Reading" /
+  "About the Author" widgets stripped, TOC labels are heading text).
+- 82 hermetic tests, 93% coverage, GitHub Actions CI green.
+- All issues closed except #6 (arbitrary live URLs via modular fetch
+  backends), the open long-term item. `--send` (#8) is merged on main.
 
 ## Architecture
 
@@ -34,6 +31,41 @@ A browser extension was prototyped and dropped on user decision (CLI only).
 | `pipeline.py` | `convert_html()` — shared orchestration for CLI (and any future frontend) |
 | `send.py` | `--send`: emails the built EPUB to the Kindle address via stdlib SMTP (env-var config, 50 MB check, actionable errors) |
 | `cli.py` | typer entrypoint: `convert` (the main command) and `version` |
+
+## Site handling — one generic path, no per-site classes
+
+The Atlantic and The Caravan are both handled by the single extractor in
+`extract.py`; the code contains **no site-specific branches** (the site
+names appear only in comments). Each site's quirks were generalized into
+shared heuristics instead:
+
+- **In-article chrome widgets** (The Atlantic nests "Recommended Reading"
+  and "About the Author" blocks *inside* `<article>`): any small
+  div/section (≤1500 chars, `_WIDGET_MAX_CHARS`) whose first heading
+  matches a known widget label (`_CHROME_HEADINGS`, plus "More from|on|by
+  …" prefixes) is dropped in `_remove_junk`.
+- **Wrapper-yielding content root** (`_pick_content_root`): when content
+  candidates nest, a wrapper that merely contains a candidate carrying
+  ≥50% of its text yields to the inner one, so post-article chrome drops
+  out (archive.today's `#CONTENT` around the page's own `<article>`,
+  `<main>` around `<article>`).
+- **Caravan DOM damage** (seen in Pxjvq): broken `<img>`-in-`<source>`
+  nesting resolved by walking up to `<picture>`; hero images hoisted out of
+  site `<header>` before junk removal; mid-article paywall boxes caught by
+  the text paywall detector; empty JSON-LD (visible DOM is used); author
+  from byline links to `/author/<slug>`.
+- **TOC labels** (`epub_builder._toc_from_body`): the heading's text with
+  tags stripped and entities decoded — not the anchor id.
+
+**Decision (2026-08-19): no `BaseExtractor`/`AtlanticExtractor`/
+`CaravanExtractor` inheritance hierarchy.** There is no per-site behavior
+to override yet — subclasses would be config-dispatch with empty bodies —
+and the tool targets *arbitrary* archived sites, where a per-site class
+zoo does not scale. Escalation path when a future site genuinely
+diverges (different root strategy, image, or author semantics): add a
+data-driven `SiteProfile` (domain → extra content selectors / junk
+patterns + optional hook callables) in a registry, and give a site a
+profile only when the generic path demonstrably fails for it.
 
 ## Verified archive.today behavior (important, non-obvious)
 
@@ -57,10 +89,6 @@ A browser extension was prototyped and dropped on user decision (CLI only).
   **E999 - Send to Kindle Internal Error** (verified: Gmail delivered, Amazon
   bounced). Extractor strips the widget, all comments, and drops failed-image
   `<img>` tags wholesale (a src-less `<img>` also trips the converter).
-- Caravan quirks seen in Pxjvq: broken nesting (`<img>` inside `<source>`
-  inside `<picture>`), hero image nested inside the site-nav `<header>`,
-  paywall boxes mid-article, empty JSON-LD, author only present as a byline
-  link to `/author/<slug>`.
 
 ## `--browser` semantics
 
@@ -73,7 +101,7 @@ copies the solved cookies into the requests jar so plain fetches work after.
 
 ```bash
 uv pip install -e '.[dev]'   # or: uv sync --extra dev
-uv run pytest                # >75% coverage required (currently ~92%)
+uv run pytest                # >75% coverage required
 ```
 
 Hermetic (no real network): mock archive.today server, local HTTP image
